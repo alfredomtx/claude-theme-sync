@@ -4,6 +4,8 @@ class ClaudeThemeSync {
     private let configPath: String
     private let installDir: String
     private let tmuxScriptPath: String
+    private var retryTimer: Timer?
+    private var skipFilePath: String?
 
     init() {
         self.configPath = NSString(string: "~/.claude.json").expandingTildeInPath
@@ -56,9 +58,46 @@ class ClaudeThemeSync {
             return
         }
 
+        // Cancel any previous retry cycle
+        stopRetryTimer()
+
+        // Create skip file for tracking already-injected panes
+        let skipFile = NSTemporaryDirectory() + "claude-theme-inject-\(ProcessInfo.processInfo.processIdentifier)"
+        try? fileManager.removeItem(atPath: skipFile)
+        skipFilePath = skipFile
+
+        // Initial injection
+        runInjectionScript(theme: theme, skipFile: skipFile)
+
+        // Poll for panes that were busy (running subprocesses) during initial injection
+        var retriesLeft = 5
+        retryTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] timer in
+            guard let self = self else {
+                timer.invalidate()
+                return
+            }
+            retriesLeft -= 1
+            self.runInjectionScript(theme: theme, skipFile: skipFile)
+            if retriesLeft <= 0 {
+                self.stopRetryTimer()
+                print("tmux inject: Retry polling complete")
+            }
+        }
+    }
+
+    private func stopRetryTimer() {
+        retryTimer?.invalidate()
+        retryTimer = nil
+        if let path = skipFilePath {
+            try? FileManager.default.removeItem(atPath: path)
+            skipFilePath = nil
+        }
+    }
+
+    private func runInjectionScript(theme: String, skipFile: String) {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
-        process.arguments = [tmuxScriptPath, theme]
+        process.arguments = [tmuxScriptPath, theme, skipFile]
 
         let pipe = Pipe()
         process.standardOutput = pipe
