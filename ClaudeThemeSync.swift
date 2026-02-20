@@ -2,14 +2,18 @@ import Foundation
 
 class ClaudeThemeSync {
     private let configPath: String
+    private let installDir: String
+    private let tmuxScriptPath: String
 
     init() {
         self.configPath = NSString(string: "~/.claude.json").expandingTildeInPath
+        self.installDir = NSString(string: "~/.claude/theme-sync").expandingTildeInPath
+        self.tmuxScriptPath = "\(NSString(string: "~/.claude/theme-sync").expandingTildeInPath)/tmux-theme-inject.sh"
     }
 
     func start() {
-        // Sync immediately on start
-        syncTheme()
+        // Sync immediately on start (no tmux injection on startup)
+        syncTheme(injectTmux: false)
 
         // Listen for theme changes
         DistributedNotificationCenter.default().addObserver(
@@ -27,10 +31,10 @@ class ClaudeThemeSync {
 
     @objc private func handleThemeChange() {
         print("Theme change detected")
-        syncTheme()
+        syncTheme(injectTmux: true)
     }
 
-    private func syncTheme() {
+    private func syncTheme(injectTmux: Bool) {
         let isDarkMode = isDarkModeEnabled()
         let theme = isDarkMode ? "dark" : "light"
 
@@ -38,8 +42,38 @@ class ClaudeThemeSync {
 
         if updateConfig(theme: theme) {
             print("Successfully updated ~/.claude.json")
+            if injectTmux {
+                injectTmuxTheme(theme: theme)
+            }
         } else {
             print("Failed to update ~/.claude.json")
+        }
+    }
+
+    private func injectTmuxTheme(theme: String) {
+        let fileManager = FileManager.default
+        guard fileManager.fileExists(atPath: tmuxScriptPath) else {
+            return
+        }
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/bash")
+        process.arguments = [tmuxScriptPath, theme]
+
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = pipe
+
+        do {
+            try process.run()
+            process.waitUntilExit()
+
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            if let output = String(data: data, encoding: .utf8), !output.isEmpty {
+                print(output, terminator: "")
+            }
+        } catch {
+            print("Error running tmux injection script: \(error)")
         }
     }
 
