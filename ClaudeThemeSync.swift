@@ -19,14 +19,14 @@ class ClaudeThemeSync {
             object: nil
         )
 
-        print("Claude Theme Sync started. Listening for theme changes...")
+        NSLog("Claude Theme Sync started. Listening for theme changes...")
 
         // Keep running
         RunLoop.current.run()
     }
 
     @objc private func handleThemeChange() {
-        print("Theme change detected")
+        NSLog("Theme change detected")
         syncTheme()
     }
 
@@ -34,12 +34,12 @@ class ClaudeThemeSync {
         let isDarkMode = isDarkModeEnabled()
         let theme = isDarkMode ? "dark" : "light"
 
-        print("Setting Claude Code theme to: \(theme)")
+        NSLog("Setting Claude Code theme to: \(theme)")
 
         if updateConfig(theme: theme) {
-            print("Successfully updated ~/.claude.json")
+            NSLog("Successfully updated ~/.claude.json")
         } else {
-            print("Failed to update ~/.claude.json")
+            NSLog("Failed to update ~/.claude.json")
         }
     }
 
@@ -58,13 +58,13 @@ class ClaudeThemeSync {
         guard fileManager.fileExists(atPath: configPath),
               let data = fileManager.contents(atPath: configPath),
               var json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            print("Error: Could not read ~/.claude.json")
+            NSLog("Error: Could not read ~/.claude.json")
             return false
         }
 
         // Check if theme is already correct
         if let currentTheme = json["theme"] as? String, currentTheme == theme {
-            print("Theme already set to \(theme), skipping update")
+            NSLog("Theme already set to \(theme), skipping update")
             return true
         }
 
@@ -76,7 +76,7 @@ class ClaudeThemeSync {
             withJSONObject: json,
             options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
         ) else {
-            print("Error: Could not serialize JSON")
+            NSLog("Error: Could not serialize JSON")
             return false
         }
 
@@ -85,7 +85,7 @@ class ClaudeThemeSync {
             try updatedData.write(to: URL(fileURLWithPath: configPath), options: .atomic)
             return true
         } catch {
-            print("Error writing config: \(error)")
+            NSLog("Error writing config: \(error)")
             return false
         }
     }
