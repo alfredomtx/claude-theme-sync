@@ -44,7 +44,11 @@ class ClaudeThemeSync {
     }
 
     private func isDarkModeEnabled() -> Bool {
-        return UserDefaults.standard.string(forKey: "AppleInterfaceStyle") == "Dark"
+        let key = "AppleInterfaceStyle" as CFString
+        guard let value = CFPreferencesCopyValue(key, kCFPreferencesAnyApplication, kCFPreferencesCurrentUser, kCFPreferencesCurrentHost) as? String else {
+            return false
+        }
+        return value == "Dark"
     }
 
     private func updateConfig(theme: String) -> Bool {
